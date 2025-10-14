@@ -1,9 +1,28 @@
 {
-"version": 2,
-"functions": {
-"api/proxy.js": {
-"memory": 512,
-"maxDuration": 10
-}
-}
+  "version": 2,
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Authorization, Accept"
+      }
+    }
+  ],
+  "functions": {
+    "api/proxy.js": {
+      "maxDuration": 30
+    },
+    "api/huggingface.js": {
+      "maxDuration": 60
+    },
+    "api/image-process.js": {
+      "maxDuration": 60
+    },
+    "api/status.js": {
+      "maxDuration": 10
+    }
+  }
 }
