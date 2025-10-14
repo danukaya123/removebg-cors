@@ -1,6 +1,4 @@
-const fetch = require('node-fetch');
-
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -20,8 +18,6 @@ module.exports = async (req, res) => {
     });
   }
 
-  console.log('Proxying request to:', targetUrl);
-  
   try {
     const headers = { ...req.headers };
     
@@ -29,12 +25,10 @@ module.exports = async (req, res) => {
     delete headers.host;
     delete headers.origin;
     delete headers.referer;
-    delete headers['content-length'];
     
     const fetchOptions = {
       method: req.method,
       headers: headers,
-      timeout: 30000
     };
 
     // Handle request body
@@ -47,16 +41,9 @@ module.exports = async (req, res) => {
     // Get response content type
     const contentType = response.headers.get('content-type');
     
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
     if (contentType && contentType.includes('application/json')) {
       const data = await response.json();
       return res.status(response.status).json(data);
-    } else if (contentType && contentType.includes('image/')) {
-      const buffer = await response.buffer();
-      res.setHeader('Content-Type', contentType);
-      return res.status(response.status).send(buffer);
     } else {
       const text = await response.text();
       return res.status(response.status).send(text);
@@ -70,4 +57,4 @@ module.exports = async (req, res) => {
       message: error.message
     });
   }
-};
+}
