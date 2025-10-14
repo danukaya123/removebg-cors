@@ -1,7 +1,21 @@
 {
+  "name": "removebg-proxy",
+  "version": "1.0.0",
+  "description": "Vercel CORS Proxy for Hugging Face Background Remover Space",
+  "main": "api/proxy.js",
+  "type": "module",
+  "scripts": {
+    "start": "vercel dev",
+    "deploy": "vercel --prod"
+  },
   "dependencies": {
     "busboy": "^1.6.0",
     "form-data": "^4.0.4",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "stream": "^0.0.3"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18"
   }
 }
