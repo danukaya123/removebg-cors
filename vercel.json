@@ -1,25 +1,27 @@
 {
   "version": 2,
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "methods": ["GET", "POST", "OPTIONS"],
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Authorization, Accept"
-      }
-    }
-  ],
   "functions": {
-    "api/proxy.js": {
-      "maxDuration": 30
-    },
-    "api/image-process.js": {
+    "api/*.js": {
       "maxDuration": 60
-    },
-    "api/status.js": {
-      "maxDuration": 10
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-Requested-With, Content-Type, Authorization, Accept"
+        }
+      ]
+    }
+  ]
 }
