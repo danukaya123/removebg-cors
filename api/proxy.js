@@ -31,11 +31,6 @@ module.exports = async (req, res) => {
     delete headers.referer;
     delete headers['content-length'];
     
-    // Ensure proper content type for file uploads
-    if (headers['content-type'] && headers['content-type'].includes('multipart/form-data')) {
-      delete headers['content-type'];
-    }
-
     const fetchOptions = {
       method: req.method,
       headers: headers,
@@ -43,14 +38,8 @@ module.exports = async (req, res) => {
     };
 
     // Handle request body
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      if (req.body) {
-        if (req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data')) {
-          fetchOptions.body = req.body;
-        } else {
-          fetchOptions.body = JSON.stringify(req.body);
-        }
-      }
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+      fetchOptions.body = req.body;
     }
 
     const response = await fetch(targetUrl, fetchOptions);
@@ -58,14 +47,7 @@ module.exports = async (req, res) => {
     // Get response content type
     const contentType = response.headers.get('content-type');
     
-    // Set response headers from target
-    response.headers.forEach((value, key) => {
-      if (key.toLowerCase() !== 'set-cookie') {
-        res.setHeader(key, value);
-      }
-    });
-
-    // Ensure CORS headers are set
+    // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     
     if (contentType && contentType.includes('application/json')) {
@@ -83,21 +65,7 @@ module.exports = async (req, res) => {
   } catch (error) {
     console.error('Proxy error:', error);
     
-    if (error.name === 'TimeoutError') {
-      return res.status(504).json({
-        error: 'Gateway Timeout',
-        message: 'The request took too long to process'
-      });
-    }
-    
-    if (error.code === 'ENOTFOUND') {
-      return res.status(502).json({
-        error: 'Bad Gateway',
-        message: 'Could not connect to the target server'
-      });
-    }
-    
-    return res.status(500).json({
+    res.status(500).json({
       error: 'Internal Server Error',
       message: error.message
     });
