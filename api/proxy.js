@@ -1,88 +1,63 @@
 export default async function handler(req, res) {
-method: req.method,
-// Filter hop-by-hop headers
-headers: {}
-};
+  try {
+    // 1) CORS headers
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
 
+    // 2) Preflight request
+    if (req.method === "OPTIONS") {
+      return res.status(204).end();
+    }
 
-// Copy headers except host and origin (and some hop-by-hop)
-const hopByHop = ['host','connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailers','transfer-encoding','upgrade'];
-for (const [k, v] of Object.entries(req.headers)) {
-const lk = k.toLowerCase();
-if (lk === 'origin') continue; // don't forward original Origin
-if (lk === 'referer') continue;
-if (hopByHop.includes(lk)) continue;
-fetchOptions.headers[k] = v;
-}
+    // 3) Get target URL
+    const targetUrl = req.query.url;
+    if (!targetUrl) {
+      return res.status(400).json({ error: "Missing 'url' query parameter" });
+    }
 
+    // 4) Prepare fetch options
+    const fetchOptions = {
+      method: req.method,
+      headers: {}
+    };
 
-// Forward body for methods that allow it
-if (['POST','PUT','PATCH','DELETE'].includes(req.method.toUpperCase())) {
-// When running on Vercel serverless, the request body is available as a stream.
-// We can pipe raw body by using the Request constructor if available, but
-// simplest approach is to read the body as a buffer.
-const buffers = [];
-for await (const chunk of req) buffers.push(chunk);
-const body = Buffer.concat(buffers);
-if (body.length) fetchOptions.body = body;
-}
+    // Copy headers except host/origin
+    for (const [key, value] of Object.entries(req.headers)) {
+      const lower = key.toLowerCase();
+      if (["host", "origin", "referer"].includes(lower)) continue;
+      fetchOptions.headers[key] = value;
+    }
 
+    // 5) Attach body if needed
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method.toUpperCase())) {
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      fetchOptions.body = Buffer.concat(chunks);
+    }
 
-// Use global fetch (available on Vercel)
-const upstreamRes = await fetch(url, fetchOptions);
+    // 6) Call the target URL
+    const response = await fetch(targetUrl, fetchOptions);
 
+    // 7) Copy status code
+    res.status(response.status);
 
-// Copy status
-res.status(upstreamRes.status);
+    // 8) Copy response headers (except CORS)
+    response.headers.forEach((value, key) => {
+      if (!key.toLowerCase().startsWith("access-control-")) {
+        res.setHeader(key, value);
+      }
+    });
 
+    // 9) Return the body
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return res.send(buffer);
 
-// Copy response headers, but override CORS headers
-upstreamRes.headers.forEach((value, key) => {
-const lk = key.toLowerCase();
-if (['access-control-allow-origin','access-control-allow-credentials','access-control-allow-methods','access-control-allow-headers'].includes(lk)) return;
-res.setHeader(key, value);
-});
-
-
-// Ensure we return appropriate content-type and CORS
-res.setHeader('Access-Control-Allow-Origin', allowOrigin || 'null');
-res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-
-// Stream response body
-const reader = upstreamRes.body?.getReader?.();
-if (reader) {
-//stream
-const stream = new ReadableStream({
-start(controller) {
-function push() {
-reader.read().then(({ done, value }) => {
-if (done) {
-controller.close();
-return;
-}
-controller.enqueue(value);
-push();
-}).catch(err => controller.error(err));
-}
-push();
-}
-});
-
-
-const resBody = await new Response(stream).arrayBuffer();
-res.end(Buffer.from(resBody));
-return;
-}
-
-
-// Fallback: get as arrayBuffer/text
-const buffer = Buffer.from(await upstreamRes.arrayBuffer());
-res.end(buffer);
-
-
-} catch (err) {
-console.error('Proxy error:', err);
-res.status(500).json({ error: 'Proxy failed', details: String(err) });
-}
+  } catch (error) {
+    console.error("Proxy Error:", error);
+    return res.status(500).json({ error: "Proxy Error", details: error.message });
+  }
 }
