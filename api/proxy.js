@@ -1,63 +1,55 @@
-export default async function handler(req, res) {
-  try {
-    // 1) CORS headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
+import Busboy from "busboy";
+import fetch from "node-fetch";
+import FormData from "form-data";
 
-    // 2) Preflight request
+export const config = { api: { bodyParser: false } };
+
+export default async function handler(req, res) {
+  const targetUrl = req.query.url;
+  if (!targetUrl) return res.status(400).json({ error: "Missing 'url' query parameter" });
+
+  try {
     if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "*");
       return res.status(204).end();
     }
 
-    // 3) Get target URL
-    const targetUrl = req.query.url;
-    if (!targetUrl) {
-      return res.status(400).json({ error: "Missing 'url' query parameter" });
-    }
+    const form = new FormData();
 
-    // 4) Prepare fetch options
-    const fetchOptions = {
-      method: req.method,
-      headers: {}
-    };
-
-    // Copy headers except host/origin
-    for (const [key, value] of Object.entries(req.headers)) {
-      const lower = key.toLowerCase();
-      if (["host", "origin", "referer"].includes(lower)) continue;
-      fetchOptions.headers[key] = value;
-    }
-
-    // 5) Attach body if needed
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method.toUpperCase())) {
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      fetchOptions.body = Buffer.concat(chunks);
-    }
-
-    // 6) Call the target URL
-    const response = await fetch(targetUrl, fetchOptions);
-
-    // 7) Copy status code
-    res.status(response.status);
-
-    // 8) Copy response headers (except CORS)
-    response.headers.forEach((value, key) => {
-      if (!key.toLowerCase().startsWith("access-control-")) {
-        res.setHeader(key, value);
-      }
+    // Parse the incoming multipart/form-data
+    const busboy = Busboy({ headers: req.headers });
+    const finishPromise = new Promise((resolve, reject) => {
+      busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
+        form.append(fieldname, file, { filename, contentType: mimetype });
+      });
+      busboy.on("field", (fieldname, value) => {
+        form.append(fieldname, value);
+      });
+      busboy.on("error", reject);
+      busboy.on("finish", resolve);
     });
 
-    // 9) Return the body
+    req.pipe(busboy);
+    await finishPromise;
+
+    // Forward to Hugging Face Space
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      body: form,
+    });
+
+    // Forward headers + CORS
+    const contentType = response.headers.get("content-type") || "application/octet-stream";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
     const buffer = Buffer.from(await response.arrayBuffer());
-    return res.send(buffer);
+    res.status(response.status).send(buffer);
 
   } catch (error) {
-    console.error("Proxy Error:", error);
-    return res.status(500).json({ error: "Proxy Error", details: error.message });
+    console.error("Proxy error:", error);
+    res.status(500).json({ error: "Proxy Error", details: error.message });
   }
 }
