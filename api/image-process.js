@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const HF_SPACE_URL = "https://danuka21-quizontal-background-remover-c1.hf.space";
+    const HF_SPACE_URL = "https://not-lain-background-removal.hf.space";
     
     console.log('Received image processing request');
 
